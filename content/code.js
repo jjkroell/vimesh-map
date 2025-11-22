@@ -10,7 +10,7 @@ const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 // Control state
 let repeaterRenderMode = 'hit';
 let repeaterSearch = '';
-let showEdges = true;
+let showSamples = false;
 
 // Data
 let nodes = null; // Graph data from the last refresh
@@ -19,7 +19,7 @@ let hashToCoverage = null; // Index of geohash -> coverage
 let edgeList = null; // List of connected repeater and coverage
 
 // Map layers
-let tileLayer = L.layerGroup().addTo(map);
+let coverageLayer = L.layerGroup().addTo(map);
 let edgeLayer = L.layerGroup().addTo(map);
 let sampleLayer = L.layerGroup().addTo(map);
 let repeaterLayer = L.layerGroup().addTo(map);
@@ -47,6 +47,12 @@ mapControl.onAdd = m => {
       </label>
     </div>
     <div class="mesh-control-row">
+      <label>
+        Show Samples:
+        <input type="checkbox" id="show-samples" />
+      </label>
+    </div>
+    <div class="mesh-control-row">
       <button type="button" id="refresh-map-button">Refresh map</button>
     </div>
   `;
@@ -61,6 +67,12 @@ mapControl.onAdd = m => {
     .addEventListener("input", (e) => {
       repeaterSearch = e.target.value.toLowerCase();
       updateAllRepeaterMarkers();
+    });
+
+  div.querySelector("#show-samples")
+    .addEventListener("change", (e) => {
+      showSamples = e.target.checked;
+      sampleLayer.eachLayer(s => updateSampleMarkerVisibility(s));
     });
 
   div.querySelector("#refresh-map-button")
@@ -126,6 +138,7 @@ function sampleMarker(s) {
     ${date.toLocaleString()}
     ${s.path.length === 0 ? '' : '<br/>Hit: ' + s.path.join(',')}`;
   marker.bindPopup(details, { maxWidth: 320 });
+  marker.on('add', () => updateSampleMarkerVisibility(marker));
   return marker;
 }
 
@@ -145,7 +158,7 @@ function repeaterMarker(r) {
     `${new Date(r.time).toLocaleString()}`
   ].join('<br/>');
   const marker = L.marker([r.lat, r.lon], { icon: icon });
-  
+
   marker.repeater = r;
   marker.bindPopup(details, { maxWidth: 320 });
   marker.on('add', () => updateRepeaterMarkerVisibility(marker));
@@ -194,6 +207,17 @@ function shouldShowRepeater(r) {
   return true;
 }
 
+function updateSampleMarkerVisibility(s) {
+  const el = s.getElement();
+  if (showSamples) {
+    el.classList.remove("hidden");
+    el.classList.add("leaflet-interactive");
+  } else {
+    el.classList.add("hidden");
+    el.classList.remove("leaflet-interactive");
+  }
+}
+
 function updateRepeaterMarkerVisibility(m, forceVisible = false) {
   const el = m.getElement();
   if (forceVisible || shouldShowRepeater(m.repeater)) {
@@ -211,7 +235,7 @@ function updateAllRepeaterMarkers() {
 
 function updateAllEdgeVisibility(end) {
   const markersToOverride = [];
-  updateAllRepeaterMarkers();
+  updateAllRepeaterMarkers(); // Reset visiblity to default.
 
   edgeLayer.eachLayer(e => {
     if (end !== undefined && e.ends.includes(end)) {
@@ -228,14 +252,14 @@ function updateAllEdgeVisibility(end) {
 }
 
 function renderNodes(nodes) {
-  tileLayer.clearLayers();
+  coverageLayer.clearLayers();
   edgeLayer.clearLayers();
   sampleLayer.clearLayers();
   repeaterLayer.clearLayers();
 
   // Add coverage boxes.
   hashToCoverage.entries().forEach(([key, coverage]) => {
-    tileLayer.addLayer(coverageMarker(coverage));
+    coverageLayer.addLayer(coverageMarker(coverage));
   });
 
   // Add recent samples.
@@ -257,7 +281,7 @@ function renderNodes(nodes) {
     const style = {
       weight: 2,
       opacity: 0,
-      dashArray: '1,2',
+      dashArray: '2,4',
       interactive: false,
     };
     const line = L.polyline([e.repeater.pos, e.coverage.pos], style);

@@ -5,6 +5,11 @@ body,
   margin: 0;
 }
 
+.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 #map {
   position: absolute;
   inset: 0;
@@ -33,11 +38,6 @@ body,
   background: rgba(38, 38, 39, 0.9);
   border: 1px solid #333333;
   color: #929292;
-}
-
-.leaflet-marker-icon.hidden {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .leaflet-popup-content {
