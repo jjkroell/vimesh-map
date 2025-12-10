@@ -40,25 +40,6 @@
         </div>
       </header>
 
-      <!-- Connection controls -->
-      <section class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-2 shadow">
-        <div class="flex flex-wrap items-center gap-2">
-          <button id="connectBtn"
-            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-medium disabled:opacity-40">
-            Connect via BLE
-          </button>
-          <button id="disconnectBtn" disabled
-            class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-sm font-medium disabled:opacity-40">
-            Disconnect
-          </button>
-        </div>
-        <div>
-          <span class="text-xs text-slate-400">
-            Requires Bluetooth &amp; Location permissions.
-          </span>
-        </div>
-      </section>
-
       <!-- Map and Current Tile -->
       <section class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-5">
         <div id="map" class="rounded-lg h-50"></div>
@@ -74,6 +55,20 @@
               Needs Ping: <span class="text-slate-400" id="currentNeedsPing">n/a</span>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Connection controls -->
+      <section class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-2 shadow">
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="connectBtn"
+            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-medium disabled:opacity-40">
+            Connect via BLE
+          </button>
+          <button id="disconnectBtn" disabled
+            class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-sm font-medium disabled:opacity-40">
+            Disconnect
+          </button>
         </div>
       </section>
 
@@ -188,6 +183,9 @@
 
       <!-- Info -->
       <section>
+        <div class="text-xs italic text-slate-400">
+          <span>Requires Bluetooth &amp; Location permissions.</span>
+        </div>
         <div class="text-xs italic text-slate-400">
           <span>Must remain in foreground with screen on and unlocked.</span>
         </div>
