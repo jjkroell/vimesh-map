@@ -1,6 +1,8 @@
 import { WebBleConnection, Constants } from "/content/mc/index.js";
 import {
+  centerPos,
   coverageKey,
+  geo,
   haversineMiles,
   isValidLocation
 } from "/content/shared.js";
@@ -13,8 +15,8 @@ const channelInfoEl = $("channelInfo");
 const lastSampleInfoEl = $("lastSampleInfo");
 const currentTileEl = $("currentTileHash");
 const currentNeedsPingEl = $("currentNeedsPing");
+const mapEl = $("map");
 const controlsSection = $("controls");
-const fillMissingSection = $("fill-missing-controls");
 const intervalSection = $("interval-controls");
 const ignoredRepeaterId = $("ignoredRepeaterId");
 const logBody = $("logBody");
@@ -31,6 +33,31 @@ const minDistanceSelect = $("minDistanceSelect");
 const ignoredRepeaterBtn = $("ignoredRepeaterBtn");
 
 const wardriveChannelName = "#wardrive";
+
+// --- Global Init ---
+const map = L.map('map', {
+  worldCopyJump: true,
+  dragging: true,
+  scrollWheelZoom: true,
+  touchZoom: true,
+  boxZoom: false,
+  keyboard: false,
+  tap: false,
+  zoomControl: false,
+  doubleClickZoom: false
+}).setView(centerPos, 12);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 13,
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+const coverageLayer = L.layerGroup().addTo(map);
+const currentLocMarker = L.circleMarker([0, 0], {
+  radius: 3,
+  weight: 0,
+  color: "red",
+  fillOpacity: .8
+}).addTo(map);
 
 function setStatus(text, color = null) {
   statusEl.textContent = text;
@@ -61,6 +88,9 @@ const state = {
   wakeLock: null,
   ignoredId: null, // Allows a repeater to be ignored.
   coveredTiles: new Set(),
+  locationTimer: null,
+  lastPosUpdate: 0, // Timestamp of last location update.
+  currentPos: [0, 0],
   log: [],
 };
 
@@ -77,6 +107,40 @@ function formatIsoLocal(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString();
+}
+
+// --- Coverage Functions ---
+async function refreshCoverageData() {
+  try {
+    const resp = await fetch("/get-wardrive-coverage");
+    const coveredTiles = (await resp.json()) ?? [];
+    log(`Got ${coveredTiles.length} covered tiles from service.`);
+    coveredTiles.forEach(x => state.coveredTiles.add(x));
+  } catch (e) {
+    console.error("Getting coverage failed", e);
+    setStatus("Get coverage failed", "text-red-300");
+  }
+}
+
+function getCoverageBoxMarker(tileId) {
+  const [minLat, minLon, maxLat, maxLon] = geo.decode_bbox(tileId);
+  const style = {
+    color: "#FFAB77",
+    weight: 1,
+    fillOpacity: 0.4,
+  };
+  return L.rectangle([[minLat, minLon], [maxLat, maxLon]], style);
+}
+
+function addCoverageBox(tileId) {
+  coverageLayer.addLayer(getCoverageBoxMarker(tileId));
+}
+
+function redrawCoverage() {
+  coverageLayer.clearLayers();
+  state.coveredTiles.forEach(c => {
+    addCoverageBox(c);
+  });
 }
 
 // --- Local storage log ---
@@ -186,6 +250,36 @@ function updateIgnoreId() {
 }
 
 // --- Geolocation ---
+async function startLocationTracking() {
+  stopLocationTracking();
+  await updateCurrentPosition(); // Run immediately, then on timer.
+  state.locationTimer = setInterval(updateCurrentPosition, 1000);
+}
+
+function stopLocationTracking() {
+  if (state.locationTimer) {
+    clearInterval(state.locationTimer);
+    state.locationTimer = null;
+  }
+}
+
+async function updateCurrentPosition() {
+  const pos = await getCurrentPosition();
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
+  state.currentPos = [lat, lon];
+
+  currentLocMarker.setLatLng(state.currentPos);
+  map.panTo(state.currentPos);
+
+  const coverageTileId = coverageKey(lat, lon);
+  const needsPing = !state.coveredTiles.has(coverageTileId);
+  currentTileEl.innerText = coverageTileId;
+  currentNeedsPingEl.innerText = needsPing ? "yes" : "no";
+
+  state.lastPosUpdate = Date.now();
+}
+
 function getCurrentPosition() {
   return new Promise((resolve, reject) => {
     if (!("geolocation" in navigator)) {
@@ -197,18 +291,19 @@ function getCurrentPosition() {
       (err) => reject(err),
       {
         enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 20000,
+        maximumAge: 1000,
+        timeout: 5000,
       }
     );
   });
 }
 
-async function assertInRange() {
-  const pos = await getCurrentPosition();
-  const lat = pos.coords.latitude;
-  const lon = pos.coords.longitude;
-  return isValidLocation([lat, lon]);
+// Helper to ensure the location tracking timer stays running.
+async function ensureCurrentPositionIsFresh() {
+  const dt = Date.now() - state.lastPosUpdate;
+  if (dt > 3000) {
+    await startLocationTracking();
+  }
 }
 
 // --- WakeLock helpers ---
@@ -322,33 +417,23 @@ async function sendPing({ auto = false } = {}) {
     return;
   }
 
-  setStatus(
-    auto ? "Auto ping: getting location…" : "Getting location…",
-    "text-sky-300");
-
-  // Get the position.
-  let pos;
   try {
-    pos = await getCurrentPosition();
+    await ensureCurrentPositionIsFresh();
   } catch (e) {
-    console.error("Could not get location", e);
-    setStatus("Could not get location", "text-red-300");
-    addLogEntry({
-      timestamp: new Date().toISOString(),
-      mode: auto ? "auto" : "manual",
-      sentToMesh: false,
-      sentToService: false,
-      notes: "GPS Fail: " + e.message,
-    });
+    console.error("Get location failed", e);
+    setStatus("Get location failed", "text-amber-300");
     return;
   }
 
-  const lat = pos.coords.latitude;
-  const lon = pos.coords.longitude;
+  let pos = state.currentPos;
+  if (!isValidLocation(pos)) {
+    setStatus("Outside coverage area", "text-red-300");
+    return;
+  }
+
+  const [lat, lon] = pos;
   const coverageTileId = coverageKey(lat, lon);
   let distanceMilesValue = null;
-
-  currentTileEl.innerText = coverageTileId;
 
   if (state.pingMode === "interval") {
     // Ensure minimum distance met for interval auto ping.
@@ -375,7 +460,6 @@ async function sendPing({ auto = false } = {}) {
   } else {
     // Ensure ping is needed in the current tile.
     const needsPing = !state.coveredTiles.has(coverageTileId);
-    currentNeedsPingEl.innerText = needsPing ? "yes" : "no";
     if (auto && !needsPing) {
       setStatus("No ping needed", "text-amber-300");
       return;
@@ -420,8 +504,12 @@ async function sendPing({ auto = false } = {}) {
     // the new 'last sample' to avoid spam.
     const nowIso = new Date().toISOString();
     state.lastSample = { lat, lon, timestamp: nowIso };
-    state.coveredTiles.add(coverageTileId);
     updateLastSampleInfo();
+
+    if (!state.coveredTiles.has(coverageTileId)) {
+      state.coveredTiles.add(coverageTileId);
+      addCoverageBox(coverageTileId);
+    }
   }
 
   // Log result.
@@ -486,17 +574,11 @@ async function startAutoPing() {
   let intervalMs = 10 * 1000;
   if (state.pingMode === "interval") {
     intervalMs = minutes * 60 * 1000;
-  } else {
-    try {
-      const resp = await fetch("/get-wardrive-coverage");
-      const coveredTiles = (await resp.json()) ?? [];
-      log(`Got ${coveredTiles.length} covered tiles from service.`);
-      coveredTiles.forEach(x => state.coveredTiles.add(x));
-    } catch (e) {
-      console.error("Getting coverage failed", e);
-      setStatus("Get coverage failed", "text-red-300");
-    }
   }
+
+  // TODO: Maybe this should be fetched periodically.
+  await refreshCoverageData();
+  redrawCoverage();
 
   setStatus("Auto mode started", "text-emerald-300");
 
@@ -511,11 +593,6 @@ async function startAutoPing() {
 
 // --- Connection handling ---
 async function handleConnect() {
-  if (await assertInRange() === false) {
-    alert("Wardrive not supported in this area.");
-    return;
-  }
-
   if (state.connection) {
     return;
   }
@@ -635,10 +712,8 @@ pingModeSelect.addEventListener("change", async () => {
   stopAutoPing();
   state.pingMode = pingMode;
   if (pingMode === "interval") {
-    fillMissingSection.classList.add("hidden");
     intervalSection.classList.remove("hidden");
   } else {
-    fillMissingSection.classList.remove("hidden");
     intervalSection.classList.add("hidden");
   }
 });
@@ -658,8 +733,12 @@ clearLogBtn.addEventListener("click", () => {
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden) {
     releaseWakeLock();
-  } else if (!document.hidden && state.running) {
-    await acquireWakeLock();
+    stopLocationTracking();
+  } else {
+    await startLocationTracking();
+
+    if (state.running)
+      await acquireWakeLock();
   }
 });
 
@@ -667,7 +746,6 @@ document.addEventListener('visibilitychange', async () => {
 if ('bluetooth' in navigator) {
   navigator.bluetooth.addEventListener('backgroundstatechanged',
     (e) => {
-      log(JSON.stringify(e, 2));
       const isBackground = e.target.value;
       if (isBackground == true && state.running) {
         stopAutoPing();
@@ -682,6 +760,11 @@ export async function onLoad() {
     loadIgnoredId();
     updateLastSampleInfo();
     updateAutoButton();
+
+    await refreshCoverageData();
+    redrawCoverage();
+
+    await startLocationTracking();
   } catch (e) {
     alert(e);
   }

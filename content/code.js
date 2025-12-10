@@ -29,10 +29,10 @@ let hashToCoverage = null; // Index of geohash -> coverage
 let edgeList = null; // List of connected repeater and coverage
 
 // Map layers
-let coverageLayer = L.layerGroup().addTo(map);
-let edgeLayer = L.layerGroup().addTo(map);
-let sampleLayer = L.layerGroup().addTo(map);
-let repeaterLayer = L.layerGroup().addTo(map);
+const coverageLayer = L.layerGroup().addTo(map);
+const edgeLayer = L.layerGroup().addTo(map);
+const sampleLayer = L.layerGroup().addTo(map);
+const repeaterLayer = L.layerGroup().addTo(map);
 
 // Map controls
 const mapControl = L.control({ position: 'topright' });
@@ -99,7 +99,7 @@ mapControl.onAdd = m => {
 mapControl.addTo(map);
 
 // Max radius circle.
-const hundredMileCircle = L.circle(centerPos, {
+L.circle(centerPos, {
     radius: maxDistanceMiles * 1609.34, // meters in mile.
     color: '#a13139',
     weight: 3,
