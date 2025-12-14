@@ -164,8 +164,8 @@ async function refreshCoverage(tileId = null) {
 
 function getCoverageBoxMarker(tileId, info) {
   const [minLat, minLon, maxLat, maxLon] = geo.decode_bbox(tileId);
-  const color = info.a > 3
-    ? (info.h ? "#8CA685" : "#E09D9D")  // Old
+  const color = info.a > refreshTileAge
+    ? (info.h ? "#9ED2A1" : "#E4B8A9")  // Old
     : (info.h ? "#398821" : "#E04748"); // Fresh
 
   const style = {
