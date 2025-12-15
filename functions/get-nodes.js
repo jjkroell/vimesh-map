@@ -17,11 +17,16 @@ export async function onRequest(context) {
     const coverageList = await coverageStore.list({ cursor: cursor });
     cursor = coverageList.cursor ?? null;
     coverageList.keys.forEach(c => {
+      // Old coverage items only have "lastHeard".
+      const lastHeardTime = c.metadata.heard ? c.metadata.lastHeard : 0;
+      const updatedTime = c.metadata.updated ?? c.metadata.lastHeard;
+
       const item = {
         id: c.name,
         rcv: c.metadata.heard ?? 0,
         lost: c.metadata.lost ?? 0,
-        time: util.truncateTime(c.metadata.lastHeard ?? 0),
+        ut: util.truncateTime(updatedTime),
+        lht: util.truncateTime(lastHeardTime),
       };
 
       // Don't send empty lists.
@@ -34,6 +39,7 @@ export async function onRequest(context) {
     });
   } while (cursor !== null)
 
+  // TODO: merge samples into coverage server-side?
   do {
     const samplesList = await sampleStore.list({ cursor: cursor });
     cursor = samplesList.cursor ?? null;

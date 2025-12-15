@@ -35,8 +35,8 @@ export async function onRequest(context) {
     coverage.keys.forEach(c => {
       const id = c.name;
       const heard = c.metadata.heard > 0;
-      const time = c.metadata.lastHeard;
-      addItem(tiles, id, heard, time);
+      const updatedTime = c.metadata.updated ?? c.metadata.lastHeard;
+      addItem(tiles, id, heard, updatedTime);
     });
   } while (cursor !== null)
 
