@@ -250,7 +250,7 @@ function addPingMarker(ping) {
       ? '#398821' // Hit - Green
       : ping.heard === false
         ? '#E04748' // Miss - Red
-        : "#B92FAE"; // Unknown - Purple
+        : "#999999"; // Unknown - Gray
 
   const pos = posFromHash(ping.hash);
   const pingMarker = L.circleMarker(pos, {
@@ -482,9 +482,12 @@ async function sendPing({ auto = false } = {}) {
     return;
   }
 
-  const [lat, lon] = pos;
-  const sampleId = sampleKey(lat, lon);
-  const tileId = coverageKey(lat, lon);
+  // Until everything is migrated to use has everywhere,
+  // make sure the lat/lon in the ping is derived from the hash.
+  const [rawLat, rawLon] = pos;
+  const sampleId = sampleKey(rawLat, rawLon);
+  const tileId = sampleId.substring(0, 6);
+  const [lat, lon] = posFromHash(sampleId);
 
   // A Ping is needed in the current tile if the tile
   // is missing an entry or the entry is old.
