@@ -83,5 +83,5 @@ export async function onRequest(context) {
     });
   } while (cursor !== null)
 
-  return new Response(JSON.stringify(responseData));
+  return Response.json(responseData);
 }

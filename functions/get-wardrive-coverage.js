@@ -57,5 +57,5 @@ export async function onRequest(context) {
     });
   } while (cursor !== null)
 
-  return new Response(JSON.stringify(Array.from(tiles)));
+  return Response.json(Array.from(tiles));
 }

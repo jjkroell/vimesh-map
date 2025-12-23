@@ -30,5 +30,5 @@ export async function onRequest(context) {
     }));
   } while (cursor !== null)
 
-  return new Response(JSON.stringify(result));
+  return Response.json(result);
 }

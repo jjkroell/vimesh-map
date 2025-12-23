@@ -46,5 +46,5 @@ export async function onRequest(context) {
   });
   await Promise.all(work);
 
-  return new Response(JSON.stringify(result));
+  return Response.json(result);
 }

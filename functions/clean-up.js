@@ -156,5 +156,5 @@ export async function onRequest(context) {
       await cleanRepeaters(context, result);
   }
 
-  return new Response(JSON.stringify(result));
+  return Response.json(result);
 }
