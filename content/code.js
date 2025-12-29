@@ -37,6 +37,7 @@ let idToRepeaters = null; // Index of id -> [repeater]
 let hashToCoverage = null; // Index of geohash -> coverage
 let edgeList = null; // List of connected repeater and coverage
 let topRepeaters = null; // List of [repeater, count] with most hits
+let rxData = null; // RxLog coverage
 
 // Map layers
 const coverageLayer = L.layerGroup().addTo(map);
@@ -69,7 +70,9 @@ mapControl.onAdd = m => {
             <option value="pastDay" title="Tiles updated in the past 1 day">Past Day</option>
             <option value="repeaterCount" title="Higher indicates more repeaters">Repeater Count</option>
             <option value="sampleCount" title="Higher indicates more samples">Sample Count</option>
-            <option value="rxLogRssi" title="RSSI normalized as percentage, RxLog data">Passive RxLog RSSI</option>
+            <option value="rxLogRssi" title="RSSI normalized as percentage, RxLog data">RxLog RSSI</option>
+            <option value="rxLogSnr" title="SNR normalized as percentage, RxLog data">RxLog SNR</option>
+            <option value="rxLogRptrCnt" title="Higher indicates more repeaters, RxLog data">RxLog Repeater Count</option>
           </select>
         </label>
       </div>
@@ -151,7 +154,10 @@ mapControl.onAdd = m => {
     });
 
   div.querySelector("#refresh-map-button")
-    .addEventListener("click", () => refreshCoverage());
+    .addEventListener("click", () => {
+      rxData = null; // Will get refreshed next access.
+      refreshCoverage();
+    });
 
   div.querySelector("#use-colorscale")
     .addEventListener("change", async (e) => {
@@ -384,6 +390,7 @@ function getCoverageStyle(coverage) {
       break;
     }
 
+    case 'rxLogSnr':
     case 'bySnr': {
       if (coverage.snr != null) {
         if (useColorScale) {
@@ -457,6 +464,7 @@ function getCoverageStyle(coverage) {
       break;
     }
 
+    case 'rxLogRptrCnt':
     case 'repeaterCount': {
       const repeaterCount = coverage.rptr?.length;
       if (repeaterCount) {
@@ -495,13 +503,12 @@ function rxCoverageMarker(c) {
   const updated = new Date(c.time);
   const style = getCoverageStyle(c);
   const rect = L.rectangle([[minLat, minLon], [maxLat, maxLon]], style);
-  const rptr = c.repeaters;
   const details = `
     <div><b>${c.hash}</b>
     <span class="text-xs">${maxLat.toFixed(4)},${maxLon.toFixed(4)}</span></div>
     <div>Samples: ${c.count}</div>
     ${c.snr ? `<div>SNR: ${c.snr ?? '✕'} · RSSI: ${c.rssi ?? '✕'}</div>` : ''}
-    ${rptr.length > 0 ? `<div>Repeaters: ${rptr.join(', ')}</div>` : ''}
+    ${c.rptr.length > 0 ? `<div>Repeaters: ${c.rptr.join(', ')}</div>` : ''}
     <div class="text-xs">
     ${c.hrd ? `<div>Updated: ${shortDateStr(updated)}</div>` : ''}
     </div>`;
@@ -721,13 +728,15 @@ function updateAllEdgeVisibility(end, dimTiles = false) {
 async function redrawMap() {
   switch (coloringMode) {
     case "rxLogRssi":
+    case "rxLogSnr":
+    case "rxLogRptrCnt":
       await renderPassive();
       break;
 
     default:
       renderNodes(nodes);
       break;
-    }
+  }
 }
 
 async function renderPassive() {
@@ -737,18 +746,22 @@ async function renderPassive() {
   sampleLayer.clearLayers();
   repeaterLayer.clearLayers();
 
-  let coverage = [];
-
-  try {
-    const resp = await fetch("/get-rx-samples");
-    coverage = (await resp.json()) ?? [];
-    console.log(`Got ${coverage.length} rx-samples from service.`);
-  } catch (e) {
-    console.error("Getting rx-samples failed", e);
+  if (rxData === null) {
+    try {
+      const resp = await fetch("/get-rx-samples");
+      rxData = (await resp.json()) ?? [];
+      rxData.forEach(c => {
+        c.rptr = c.repeaters;
+        delete c.repeaters;
+      });
+      console.log(`Got ${rxData.length} rx-samples from service.`);
+    } catch (e) {
+      console.error("Getting rx-samples failed", e);
+    }
   }
 
   // Add coverage boxes.
-  coverage.forEach(c => {
+  rxData.forEach(c => {
     coverageLayer.addLayer(rxCoverageMarker(c));
   });
 }
