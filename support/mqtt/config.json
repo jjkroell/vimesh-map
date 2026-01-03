@@ -6,7 +6,7 @@
   "mqtt_topic": [ 
     "meshcore/YCD/+/packets",
     "meshcore/YVR/+/packets",
-    "meshcore/YSE/+/packets",
+    "meshcore/YSE/+/packets"
   ]
   
   "service_host": "https://vimesh-map.ve7kod.ca",
