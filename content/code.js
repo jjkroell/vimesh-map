@@ -508,8 +508,8 @@ function rxCoverageMarker(c) {
   const rptrTable = c.rptr.map(r => {
     return `<div class="rx-repeater-table-row">
         <span>${r.id}</span>
-        <span>${r.snr_avg}</span>
-        <span>${r.rssi_avg}</span>
+        <span>${r.snr_avg.toFixed(1)}</span>
+        <span>${r.rssi_avg.toFixed(1)}</span>
         <span>${r.count}</span>
       </div>`;
   });

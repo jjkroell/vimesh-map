@@ -228,9 +228,9 @@ body,
 .rx-repeater-table-row {
   display: grid;
   width: 100%;
-  grid-template-columns: 2ch 7ch 6ch auto;
-  column-gap: 0.75em;
+  grid-template-columns: 2em 4em 5em 2em;
   align-items: center;
+  justify-content: space-between;
 }
 
 .rx-repeater-table-row:nth-child(even) {
@@ -247,13 +247,4 @@ body,
 
 .rx-repeater-table-row.header {
   font-weight: 700;
-  text-align: right;
-}
-
-.rx-repeater-table-row.header span:nth-child(1) {
-  text-align: left;
-}
-
-.rx-repeater-table-row.header span:nth-child(n+2) {
-  text-align: right;
 }
